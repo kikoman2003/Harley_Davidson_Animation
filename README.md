@@ -73,7 +73,7 @@ src/
 
 public/
 ├── models/
-│   └── NOVONOVOVNOASDFADFAFASDFVOV.glb   Harley-Davidson 3D model
+│   └── NOVONOVOVNOASDFADFAFAdsoafuoaSDFVOV.glb   Harley-Davidson 3D model
 └── sounds/
     └── music.mp3             (optional) — drop your own track here
 ```
@@ -234,7 +234,7 @@ public/sounds/music.mp3
 Supported formats: MP3, OGG, WAV. The synthesised fallback is skipped automatically.
 
 ### Swap the 3D model
-Replace `public/models/NOVONOVOVNOASDFADFAFASDFVOV.glb` with any GLB file that has embedded animations. The loader picks the longest animation clip, samples its loop displacement, and everything else adapts automatically.
+Update `MODEL_PATH` in `src/state.js` to point at any GLB file (URL or local path) that has embedded animations. The loader picks the longest animation clip, samples its loop displacement, and everything else adapts automatically.
 
 ### Camera tuning
 All camera constants live in `src/state.js`:
