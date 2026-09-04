@@ -70,7 +70,7 @@ src/
 
 public/
 └── models/
-    └── neznamvise5.glb   Harley-Davidson 3D model
+    └── neznamvise6.glb   Harley-Davidson 3D model
 ```
 
 ---
