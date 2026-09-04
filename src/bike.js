@@ -40,7 +40,7 @@ function removeEmbeddedCamerasAndLights(root) {
 // Glossy body-panel paint (tank, fenders) — re-tinted from the model's
 // stock near-black glossy finish.
 const PAINT_MATERIAL_NAME = 'Sjajna';
-const PAINT_COLOR = 0x6b5433; // red-olive-green
+const PAINT_COLOR = 0x2f8f46; // green
 
 function prepareModel(root) {
   removeEmbeddedCamerasAndLights(root);

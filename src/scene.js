@@ -5,19 +5,18 @@ export function createScene() {
   const canvas = document.querySelector('#scene');
 
   const scene = new THREE.Scene();
-  scene.fog   = new THREE.FogExp2(0x111820, 0.055);
+  scene.fog   = new THREE.FogExp2(0xcfe3ee, 0.035);
 
   // Sky gradient backdrop
   const bgCanvas      = document.createElement('canvas');
   bgCanvas.width      = 2; bgCanvas.height = 512;
   const bgCtx         = bgCanvas.getContext('2d');
   const bgGrad        = bgCtx.createLinearGradient(0, 0, 0, 512);
-  bgGrad.addColorStop(0.00, '#010306');
-  bgGrad.addColorStop(0.25, '#04091a');
-  bgGrad.addColorStop(0.55, '#091424');
-  bgGrad.addColorStop(0.74, '#0e1822');
-  bgGrad.addColorStop(0.88, '#180e08');
-  bgGrad.addColorStop(1.00, '#221206');
+  bgGrad.addColorStop(0.00, '#3f8fd6');
+  bgGrad.addColorStop(0.35, '#79b8e6');
+  bgGrad.addColorStop(0.65, '#bfe0ef');
+  bgGrad.addColorStop(0.85, '#e4f0e6');
+  bgGrad.addColorStop(1.00, '#eef2e2');
   bgCtx.fillStyle     = bgGrad;
   bgCtx.fillRect(0, 0, 2, 512);
   scene.background    = new THREE.CanvasTexture(bgCanvas);
@@ -30,7 +29,7 @@ export function createScene() {
   renderer.setPixelRatio(dpr);
   renderer.outputColorSpace    = THREE.SRGBColorSpace;
   renderer.toneMapping         = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  renderer.toneMappingExposure = 1.35;
   renderer.shadowMap.enabled   = true;
   renderer.shadowMap.type      = THREE.PCFShadowMap;
 
@@ -44,9 +43,9 @@ export function createScene() {
   controls.update();
 
   // Lighting
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x2a3033, 2.1));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8c9b0, 2.6));
 
-  const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
+  const keyLight = new THREE.DirectionalLight(0xfff6e0, 3.6);
   keyLight.position.set(4, 5, 3);
   keyLight.castShadow              = true;
   keyLight.shadow.mapSize.set(1024, 1024);

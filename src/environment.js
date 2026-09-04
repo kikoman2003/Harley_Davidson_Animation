@@ -14,11 +14,12 @@ export function createEnvironment(scene) {
   const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3));
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
-    color: 0x8899bb, size: 0.055, transparent: true, opacity: 0.50, depthWrite: false,
+    color: 0xe8dcb8, size: 0.055, transparent: true, opacity: 0.50, depthWrite: false,
   }));
   scene.add(dust);
 
-  // Blue atmosphere beams
+  // Atmosphere beams (night-only — additive blending doesn't read well
+  // against a bright day sky, so these stay hidden in the day scene)
   const beamMat = new THREE.MeshBasicMaterial({
     color: 0x2244aa, transparent: true, opacity: 0.038,
     side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
@@ -27,6 +28,7 @@ export function createEnvironment(scene) {
   [[-6, -3], [6, 4]].forEach(([x, z]) => {
     const b = new THREE.Mesh(beamGeo, beamMat);
     b.position.set(x, 10, z);
+    b.visible = false;
     scene.add(b);
   });
 
@@ -35,8 +37,8 @@ export function createEnvironment(scene) {
   scene.add(bgGroup);
 
   [
-    { r: 44, h: 8,  col: 0x0a0f14, segs: 48 },
-    { r: 62, h: 12, col: 0x0d1318, segs: 56 },
+    { r: 44, h: 8,  col: 0x9fb8c9, segs: 48 },
+    { r: 62, h: 12, col: 0xb3c9d6, segs: 56 },
   ].forEach(({ r, h, col, segs }) => {
     const m = new THREE.Mesh(
       new THREE.CylinderGeometry(r, r * 1.08, h, segs, 1, true),
@@ -71,6 +73,7 @@ export function createEnvironment(scene) {
     size: 0.28, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, fog: false,
   }));
   stars.renderOrder = -2;
+  stars.visible      = false; // night-only
   bgGroup.add(stars);
 
   // Bright stars
@@ -90,6 +93,7 @@ export function createEnvironment(scene) {
     color: 0xffffff, size: 0.55, transparent: true, opacity: 0.95, depthWrite: false, fog: false,
   }));
   brightStars.renderOrder = -2;
+  brightStars.visible      = false; // night-only
   bgGroup.add(brightStars);
 
   // Moon
@@ -98,6 +102,7 @@ export function createEnvironment(scene) {
     new THREE.MeshBasicMaterial({ color: 0xf0e8d0, fog: false }),
   );
   moon.position.set(22, 28, -38);
+  moon.visible = false; // night-only
   bgGroup.add(moon);
 
   // Moon glow
@@ -115,6 +120,7 @@ export function createEnvironment(scene) {
   }));
   moonGlow.position.copy(moon.position);
   moonGlow.scale.set(8, 8, 1);
+  moonGlow.visible = false; // night-only
   bgGroup.add(moonGlow);
 
   // City horizon glow
@@ -136,6 +142,7 @@ export function createEnvironment(scene) {
   );
   cityGlow.position.y  = -3;
   cityGlow.renderOrder = -2;
+  cityGlow.visible     = false; // night-only
   bgGroup.add(cityGlow);
 
   return { bgGroup, dust };

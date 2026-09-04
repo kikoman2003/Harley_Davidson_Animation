@@ -1,6 +1,6 @@
 # Harley-Davidson 3D Showcase
 
-An interactive 3D web experience built with Three.js. A Harley-Davidson motorcycle model is displayed in a cinematic night-time scene. Pressing **RIDE** starts the animation and an orbiting camera that follows the bike as it rides forward indefinitely across a scrolling asphalt ground.
+An interactive 3D web experience built with Three.js. A Harley-Davidson motorcycle model is displayed in a bright daytime scene. Pressing **RIDE** starts the animation and an orbiting camera that follows the bike as it rides forward indefinitely across a scrolling asphalt ground.
 
 ---
 
@@ -16,7 +16,7 @@ An interactive 3D web experience built with Three.js. A Harley-Davidson motorcyc
 | Orbiting camera | Smooth 360° orbit with gentle height breathing during the ride |
 | Scrolling ground | Asphalt texture UV scrolls so it looks like the bike is actually driving |
 | Part fading | Model parts far from the camera fade out to reduce clutter |
-| Night atmosphere | Stars, moon, city horizon glow, mountains, floating dust, fog |
+| Day atmosphere | Sky gradient, mountains, floating dust, fog |
 
 ---
 
@@ -62,7 +62,7 @@ src/
 ├── main.js          Entry point — wires all modules, owns the render loop
 ├── state.js         All shared constants and mutable runtime state
 ├── scene.js         Renderer, camera, OrbitControls, lighting
-├── environment.js   Night sky: stars, moon, mountains, dust, atmosphere beams
+├── environment.js   Day sky: mountains, dust (stars/moon/city-glow kept but hidden)
 ├── ground.js        Asphalt plane and shadow catcher
 ├── bike.js          GLB loader, animation mixer, infinite forward movement
 ├── camera.js        Intro sequence logic + continuous orbit update
@@ -106,13 +106,10 @@ Single source of truth for the entire app. Contains:
 `createEnvironment(scene)` returns `{ bgGroup, dust }`.
 
 - **Floating dust** — 380 `Points` in a random ring 3–23 units out, slowly rotating in the render loop (`dust.rotation.y += delta * 0.025`).
-- **Atmosphere beams** — two `ConeGeometry` meshes with additive blending, very low opacity (0.038), producing subtle light shafts.
+- **Atmosphere beams** — two `ConeGeometry` meshes with additive blending; hidden (`visible = false`) since additive blending doesn't read well against a bright day sky.
 - **`bgGroup`** — a `THREE.Group` that follows the bike's XZ position every frame so the background never runs out. Contains:
-  - Two dark mountain cylinders (open-top `CylinderGeometry`, `BackSide` material, render order −3)
-  - 2 200 stars (`Points` with per-vertex colour — blue-white, warm-white, red-white tinted)
-  - 70 bright stars (larger point size)
-  - A moon sphere with a radial-gradient canvas glow sprite using additive blending
-  - City horizon glow — a cylinder with a vertical gradient canvas texture, additive blending, render order −2
+  - Two light blue-grey mountain cylinders (open-top `CylinderGeometry`, `BackSide` material, render order −3)
+  - Stars, bright stars, moon (+ glow sprite), and city horizon glow — all built but hidden (`visible = false`); toggle them back on for a night look
 
 ---
 
