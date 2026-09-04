@@ -1,6 +1,6 @@
 # Harley-Davidson 3D Showcase
 
-An interactive 3D web experience built with Three.js. A Harley-Davidson motorcycle model is displayed in a cinematic night-time scene. Pressing **RIDE** starts the animation, chill ambient music, and an orbiting camera that follows the bike as it rides forward indefinitely across a scrolling asphalt ground.
+An interactive 3D web experience built with Three.js. A Harley-Davidson motorcycle model is displayed in a cinematic night-time scene. Pressing **RIDE** starts the animation and an orbiting camera that follows the bike as it rides forward indefinitely across a scrolling asphalt ground.
 
 ---
 
@@ -15,7 +15,6 @@ An interactive 3D web experience built with Three.js. A Harley-Davidson motorcyc
 | Cinematic intro | Zoom-in → hold → zoom-out sequence when RIDE is pressed |
 | Orbiting camera | Smooth 360° orbit with gentle height breathing during the ride |
 | Scrolling ground | Asphalt texture UV scrolls so it looks like the bike is actually driving |
-| Chill music | Synthesised Am7–Fmaj7–Cmaj7–G ambient pad progression (or drop your own MP3) |
 | Part fading | Model parts far from the camera fade out to reduce clutter |
 | Night atmosphere | Stars, moon, city horizon glow, mountains, floating dust, fog |
 
@@ -25,8 +24,8 @@ An interactive 3D web experience built with Three.js. A Harley-Davidson motorcyc
 
 | Action | How |
 |---|---|
-| **RIDE** | Click the amber button — starts animation, intro sequence, and music |
-| **STOP** | Click the amber button — freezes the bike and fades out music |
+| **RIDE** | Click the amber button — starts animation and intro sequence |
+| **STOP** | Click the amber button — freezes the bike |
 | Rotate camera | Click and drag (OrbitControls active during showcase) |
 | Zoom | Scroll wheel |
 
@@ -38,7 +37,6 @@ An interactive 3D web experience built with Three.js. A Harley-Davidson motorcyc
 - **[Three.js](https://threejs.org/)** — 3D rendering, scene graph, animation mixer
 - **[GLTFLoader](https://threejs.org/docs/#examples/en/loaders/GLTFLoader)** — loads the `.glb` model
 - **[OrbitControls](https://threejs.org/docs/#examples/en/controls/OrbitControls)** — mouse camera interaction
-- **Web Audio API** — synthesised ambient music, no external library
 
 ---
 
@@ -68,14 +66,11 @@ src/
 ├── ground.js        Asphalt plane and shadow catcher
 ├── bike.js          GLB loader, animation mixer, infinite forward movement
 ├── camera.js        Intro sequence logic + continuous orbit update
-├── audio.js         Chill ambient music (synthesis + optional MP3 file)
 └── ui.js            RIDE / STOP buttons
 
 public/
-├── models/
-│   └── neznamvise5.glb   Harley-Davidson 3D model
-└── sounds/
-    └── music.mp3             (optional) — drop your own track here
+└── models/
+    └── neznamvise5.glb   Harley-Davidson 3D model
 ```
 
 ---
@@ -178,27 +173,6 @@ Hard-snaps camera, controls target, bgGroup, dust, and shadowCatcher to the bike
 
 ---
 
-### `src/audio.js`
-Exports `startMusic()` and `stopMusic()`.
-
-#### File playback
-On `startMusic()`, first tries `fetch('/sounds/music.mp3')`. If the file exists and decodes successfully, it plays as a looping `AudioBufferSourceNode` through the master gain. Put any music file (MP3/OGG/WAV) at `public/sounds/music.mp3` to use it.
-
-#### Synthesised chill music (fallback)
-When no file is found, generates an Am7 – Fmaj7 – Cmaj7 – G ambient pad progression:
-
-- **Tempo**: 75 BPM, 8 beats per chord = 6.4 s per chord, 25.6 s full loop
-- **Pad voices**: 3 detuned sawtooth oscillators per chord tone (−4, 0, +4 cents), through a lowpass filter at 900 Hz. Slow attack (1.2 s) and release (1.0 s) give a floating, spacious feel.
-- **Bass**: sine oscillator on the root note, one octave below the chord, with a quick attack and long decay.
-- **Melody**: a single soft sine oscillator plays an arpeggiated pattern (one note per beat, octave above the chord tones).
-- **Reverb**: four parallel feedback delay lines (0.17 s, 0.24 s, 0.33 s, 0.43 s) each with a lowpass-filtered feedback path, producing a dense hall reverb tail.
-- 30 loops (~12.8 minutes) are pre-scheduled at load so playback is perfectly gapless with no JavaScript callbacks needed during the ride.
-
-#### Fade in / out
-`startMusic()` ramps master gain 0 → 0.70 over 2.5 s. `stopMusic()` ramps 0.70 → 0 over 2.0 s, then closes the `AudioContext` after 2.2 s.
-
----
-
 ### `src/ui.js`
 `createUI({ onRide, onStop })` creates two amber-styled fixed buttons.
 
@@ -225,13 +199,6 @@ Each frame: `asphaltTex.offset.x += (followPosition.x - prevFollowPosition.x) * 
 ---
 
 ## Customising
-
-### Add your own music
-Place any audio file at:
-```
-public/sounds/music.mp3
-```
-Supported formats: MP3, OGG, WAV. The synthesised fallback is skipped automatically.
 
 ### Swap the 3D model
 Update `MODEL_PATH` in `src/state.js` to point at any GLB file (URL or local path) that has embedded animations. The loader picks the longest animation clip, samples its loop displacement, and everything else adapts automatically.

@@ -4,7 +4,6 @@ import { createEnvironment }    from './environment.js';
 import { createGround }         from './ground.js';
 import { loadBike, fadeBackgroundParts } from './bike.js';
 import { updateCamera }         from './camera.js';
-import { startMusic, stopMusic } from './audio.js';
 import { createUI, createLoadingScreen } from './ui.js';
 import { createComposer }       from './postprocessing.js';
 import {
@@ -42,12 +41,10 @@ createUI({
     state.introPhase = 0;
     state.introTimer = 0;
     clock.getDelta();
-    startMusic();
   },
   onStop: () => {
     state.rideStarted  = false;
     state.displayAngle = state.liveAngle;
-    stopMusic();
   },
 });
 

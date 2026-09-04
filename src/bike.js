@@ -37,6 +37,11 @@ function removeEmbeddedCamerasAndLights(root) {
   unwanted.forEach((o) => o.parent?.remove(o));
 }
 
+// Glossy body-panel paint (tank, fenders) — re-tinted from the model's
+// stock near-black glossy finish.
+const PAINT_MATERIAL_NAME = 'Sjajna';
+const PAINT_COLOR = 0x6b5433; // red-olive-green
+
 function prepareModel(root) {
   removeEmbeddedCamerasAndLights(root);
   root.traverse((o) => {
@@ -48,6 +53,10 @@ function prepareModel(root) {
       o.material = Array.isArray(o.material)
         ? o.material.map((m) => m.clone())
         : o.material.clone();
+      const materials = Array.isArray(o.material) ? o.material : [o.material];
+      materials.forEach((m) => {
+        if (m.name === PAINT_MATERIAL_NAME) m.color.setHex(PAINT_COLOR);
+      });
     }
     state.fadedMeshes.push(o);
   });
