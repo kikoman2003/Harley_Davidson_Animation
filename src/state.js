@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export const MODEL_PATH = '/models/NOVONOVOVNOASDFADFAFAdsoafuoaSDFVOV.glb';
+export const MODEL_PATH = '/models/neznamvise4.glb';
 
 // ── Camera / intro constants ──────────────────────────────────────────────
 export const ORBIT_TC            = 0.12;

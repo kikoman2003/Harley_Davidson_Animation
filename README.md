@@ -73,7 +73,7 @@ src/
 
 public/
 ├── models/
-│   └── NOVONOVOVNOASDFADFAFAdsoafuoaSDFVOV.glb   Harley-Davidson 3D model
+│   └── neznamvise2.glb   Harley-Davidson 3D model
 └── sounds/
     └── music.mp3             (optional) — drop your own track here
 ```
