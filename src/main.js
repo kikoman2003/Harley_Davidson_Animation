@@ -17,7 +17,7 @@ import {
 // ── Boot ──────────────────────────────────────────────────────────────────
 const { scene, camera, renderer, controls, clock } = createScene();
 const { bgGroup, dust }                             = createEnvironment(scene);
-const { asphaltTex, asphaltPlane, terrainPlane, shadowCatcher } = createGround(scene);
+const { asphaltTex, asphaltPlane, shadowCatcher }   = createGround(scene);
 const composer                                      = createComposer(renderer, scene, camera);
 
 // ── Loading screen ────────────────────────────────────────────────────────
@@ -105,13 +105,9 @@ function animate() {
     shadowCatcher.position.set(followPosition.x, -0.02, followPosition.z);
     bgGroup.position.set(followPosition.x, 0, followPosition.z);
     asphaltPlane.position.set(followPosition.x, -0.06, followPosition.z);
-    terrainPlane.position.set(followPosition.x, -0.08, followPosition.z);
 
     if (state.rideStarted) {
-      // Only the length axis needs the scroll illusion — the road plane is a
-      // fixed-width strip that re-centers on the bike's X every frame, so no
-      // horizontal scroll is needed (or correct, since the texture no longer
-      // tiles across the width).
+      asphaltTex.offset.x += (followPosition.x - prevFollowPosition.x) * 0.2;
       asphaltTex.offset.y -= (followPosition.z - prevFollowPosition.z) * 0.2;
     }
     prevFollowPosition.copy(followPosition);

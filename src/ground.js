@@ -1,13 +1,5 @@
 import * as THREE from 'three';
 
-const ROAD_WIDTH  = 9;   // world units across (X)
-const ROAD_LENGTH = 500; // world units long (Z, direction of travel)
-const TILE_SIZE   = 5;   // world units per texture tile along the length
-
-// One tile of the road surface: asphalt speckle/cracks plus a dashed centre
-// line. Stretched across the full road width (no horizontal tiling) so the
-// line always lands dead centre, and repeated along the length for the dash
-// pattern.
 function makeAsphaltTexture(size = 512) {
   const c   = document.createElement('canvas');
   c.width   = c.height = size;
@@ -43,10 +35,6 @@ function makeAsphaltTexture(size = 512) {
     ctx.stroke();
   }
 
-  // Dashed centre line — one dash per tile so it repeats seamlessly.
-  ctx.fillStyle = '#e8e0c8';
-  ctx.fillRect(size / 2 - size * 0.018, size * 0.08, size * 0.036, size * 0.4);
-
   const tex      = new THREE.CanvasTexture(c);
   tex.wrapS      = tex.wrapT = THREE.RepeatWrapping;
   return tex;
@@ -54,27 +42,16 @@ function makeAsphaltTexture(size = 512) {
 
 export function createGround(scene) {
   const asphaltTex = makeAsphaltTexture(512);
-  asphaltTex.repeat.set(1, ROAD_LENGTH / TILE_SIZE);
+  asphaltTex.repeat.set(100, 100);
 
   const asphaltPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(ROAD_WIDTH, ROAD_LENGTH, 1, 1),
+    new THREE.PlaneGeometry(500, 500, 1, 1),
     new THREE.MeshStandardMaterial({ map: asphaltTex, color: 0xcccccc, roughness: 0.97, metalness: 0.00 }),
   );
   asphaltPlane.rotation.x    = -Math.PI / 2;
   asphaltPlane.position.y    = -0.06;
   asphaltPlane.receiveShadow = true;
   scene.add(asphaltPlane);
-
-  // Wide grass shoulder so the road reads as a distinct street rather than
-  // an undifferentiated floor stretching to the horizon.
-  const terrainPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(500, 500, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x6b8f52, roughness: 1, metalness: 0 }),
-  );
-  terrainPlane.rotation.x    = -Math.PI / 2;
-  terrainPlane.position.y    = -0.08;
-  terrainPlane.receiveShadow = true;
-  scene.add(terrainPlane);
 
   const shadowCatcher = new THREE.Mesh(
     new THREE.CircleGeometry(5, 48),
@@ -85,5 +62,5 @@ export function createGround(scene) {
   shadowCatcher.receiveShadow = true;
   scene.add(shadowCatcher);
 
-  return { asphaltTex, asphaltPlane, terrainPlane, shadowCatcher };
+  return { asphaltTex, asphaltPlane, shadowCatcher };
 }
