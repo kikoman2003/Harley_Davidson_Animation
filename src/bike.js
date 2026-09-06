@@ -37,9 +37,10 @@ function removeEmbeddedCamerasAndLights(root) {
   unwanted.forEach((o) => o.parent?.remove(o));
 }
 
-// Glossy body-panel paint (tank, fenders) — re-tinted from the model's
-// stock near-black glossy finish.
-const PAINT_MATERIAL_NAME = 'Sjajna';
+// Glossy body-panel paint (tank base + clear coat share near-identical
+// near-black stock materials) — both re-tinted so panels don't show a
+// two-tone gray/green split depending on which layer is visible.
+const PAINT_MATERIAL_NAMES = new Set(['Sjajna', 'Osnova']);
 const PAINT_COLOR = 0x2f8f46; // green
 
 function prepareModel(root) {
@@ -55,9 +56,14 @@ function prepareModel(root) {
         : o.material.clone();
       const materials = Array.isArray(o.material) ? o.material : [o.material];
       materials.forEach((m) => {
-        if (m.name === PAINT_MATERIAL_NAME) m.color.setHex(PAINT_COLOR);
+        if (PAINT_MATERIAL_NAMES.has(m.name)) m.color.setHex(PAINT_COLOR);
       });
     }
+    // Some parts in this model have their object origin far from their actual
+    // geometry (a leftover from the source asset merge), so distance-based
+    // fading must use the geometry's own center rather than the object pivot.
+    o.geometry.computeBoundingBox();
+    o.userData.fadeCenter = o.geometry.boundingBox.getCenter(new THREE.Vector3());
     state.fadedMeshes.push(o);
   });
 }
@@ -102,7 +108,9 @@ function setMaterialOpacity(mat, o) {
 export function fadeBackgroundParts() {
   if (!state.followTarget) return;
   state.fadedMeshes.forEach((mesh) => {
-    const dist = mesh.getWorldPosition(meshWP).distanceTo(followPosition);
+    mesh.updateWorldMatrix(true, false);
+    meshWP.copy(mesh.userData.fadeCenter).applyMatrix4(mesh.matrixWorld);
+    const dist = meshWP.distanceTo(followPosition);
     let opacity = 1;
     if (dist > VISIBLE_PART_DISTANCE) {
       const t = THREE.MathUtils.clamp(
