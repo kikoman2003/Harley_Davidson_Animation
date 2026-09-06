@@ -209,7 +209,7 @@ export function loadBike({ scene, camera, controls, clock, bgGroup, dust, shadow
         // match it (including curves) and the container can accumulate any
         // net per-loop drift, making the bike keep progressing indefinitely.
         const pathPoints = sampleBikePath(state.model, state.followTarget, state.animationClips);
-        buildRoadAndTerrain(scene, pathPoints);
+        buildRoadAndTerrain(bikeContainer, pathPoints);
 
         state.mixer.addEventListener('loop', () => {
           if (!state.followTarget) return;

@@ -60,29 +60,30 @@ function makeAsphaltTexture(size = 512) {
   return tex;
 }
 
-// Builds N evenly (arc-length) spaced samples plus per-sample tangents along
-// a closed Catmull-Rom spline fitted through pathPoints. Reused for the road
-// surface and both curbs so they all bend identically through every curve.
+// Builds N+1 evenly (arc-length) spaced samples plus a tangent at each one,
+// along an OPEN Catmull-Rom spline fitted through pathPoints. The path is
+// NOT closed: the raw samples run from the animation's start to a point well
+// short of a full loop, then the underlying clip hard-teleports back to the
+// start (a large discontinuity, not a spatial curve) — see loopDisplace in
+// bike.js. Treating this as a closed loop would fabricate a fake road
+// segment bridging that teleport gap, so we fit only the real, travelled arc.
 function sampleSmoothPath(pathPoints, divisions) {
   const curve = new THREE.CatmullRomCurve3(
     pathPoints.map((p) => new THREE.Vector3(p.x, 0, p.z)),
-    true, // closed loop — the animation returns to its start every cycle
+    false, // open — see note above
     'catmullrom',
     CURVE_TENSION,
   );
   const points = curve.getSpacedPoints(divisions);
-  const tangents = [];
-  for (let i = 0; i < divisions; i++) {
-    tangents.push(curve.getTangentAt(i / divisions));
-  }
-  return { points, tangents }; // points has divisions+1 entries (last === first)
+  const tangents = points.map((_, i) => curve.getTangentAt(Math.min(i / divisions, 1)));
+  return { points, tangents }; // both arrays have divisions+1 entries
 }
 
 // Builds a flat ribbon of given width hugging (points, tangents), with UVs
 // driven by cumulative arc length so texture tiling stays consistent through
 // curves. Returns a THREE.Mesh.
 function buildRibbon(points, tangents, width, material, y) {
-  const n = tangents.length; // == points.length - 1, closed loop
+  const n = points.length;
   const left = new Array(n);
   const right = new Array(n);
   const dist = new Array(n);
@@ -115,9 +116,8 @@ function buildRibbon(points, tangents, width, material, y) {
   }
 
   const indices = [];
-  for (let i = 0; i < n; i++) {
-    const next = (i + 1) % n;
-    const li = i * 2, ri = i * 2 + 1, ln = next * 2, rn = next * 2 + 1;
+  for (let i = 0; i < n - 1; i++) {
+    const li = i * 2, ri = i * 2 + 1, ln = (i + 1) * 2, rn = (i + 1) * 2 + 1;
     indices.push(li, rn, ri);
     indices.push(li, ln, rn);
   }
@@ -148,13 +148,18 @@ export function createGround(scene) {
 
 // Builds the road, curbs, and grass terrain from the bike's actual sampled
 // trajectory (see sampleBikePath in bike.js) — the road centreline IS that
-// trajectory, smoothed through a closed Catmull-Rom spline so it bends
-// exactly where the bike bends, with no separate/unrelated path. Built once,
-// as static geometry, since the path is a closed loop the bike repeats
-// forever: the whole road is always "ahead and behind" wherever the bike
-// currently is, so no chunking/recycling or per-frame regeneration is
-// needed.
-export function buildRoadAndTerrain(scene, pathPoints) {
+// trajectory, smoothed through an open Catmull-Rom spline so it bends
+// exactly where the bike bends, with no separate/unrelated path.
+//
+// Added to `bikeContainer` (passed in as `parent`), NOT the top-level scene.
+// The sampled points are local coordinates within bikeContainer (captured
+// before it has accumulated any per-loop drift), and bikeContainer itself
+// gets shifted by loopDisplace every time the animation loops (see bike.js).
+// Parenting the road there means it inherits that same shift automatically,
+// so it stays under the bike on every repetition of the arc — a static mesh
+// added directly to the scene would only ever cover the very first loop's
+// stretch of world space and the bike would drive off the end of it on lap 2.
+export function buildRoadAndTerrain(parent, pathPoints) {
   const divisions = Math.max(pathPoints.length * 2, 300);
   const { points, tangents } = sampleSmoothPath(pathPoints, divisions);
 
@@ -164,22 +169,22 @@ export function buildRoadAndTerrain(scene, pathPoints) {
     new THREE.MeshStandardMaterial({ map: asphaltTex, color: 0xcccccc, roughness: 0.97, metalness: 0.00 }),
     -0.06,
   );
-  scene.add(roadMesh);
+  parent.add(roadMesh);
 
   const curbMaterial = new THREE.MeshStandardMaterial({ color: 0xb8b4ac, roughness: 0.9, metalness: 0 });
-  const curbHalfSpan = ROAD_WIDTH / 2 + CURB_WIDTH;
+  const curbOffset = ROAD_WIDTH / 2 + CURB_WIDTH / 2;
   // Re-derive left/right curb centrelines by offsetting the road's own
   // centreline points outward, then ribbon those at CURB_WIDTH.
-  const leftCurbPoints = points.slice(0, -1).map((p, i) => {
+  const leftCurbPoints = points.map((p, i) => {
     const t = tangents[i];
-    return { x: p.x - t.z * (curbHalfSpan - CURB_WIDTH / 2), z: p.z + t.x * (curbHalfSpan - CURB_WIDTH / 2) };
+    return { x: p.x - t.z * curbOffset, z: p.z + t.x * curbOffset };
   });
-  const rightCurbPoints = points.slice(0, -1).map((p, i) => {
+  const rightCurbPoints = points.map((p, i) => {
     const t = tangents[i];
-    return { x: p.x + t.z * (curbHalfSpan - CURB_WIDTH / 2), z: p.z - t.x * (curbHalfSpan - CURB_WIDTH / 2) };
+    return { x: p.x + t.z * curbOffset, z: p.z - t.x * curbOffset };
   });
-  scene.add(buildRibbon(leftCurbPoints.concat(leftCurbPoints[0]), tangents, CURB_WIDTH, curbMaterial, -0.06 + CURB_HEIGHT));
-  scene.add(buildRibbon(rightCurbPoints.concat(rightCurbPoints[0]), tangents, CURB_WIDTH, curbMaterial, -0.06 + CURB_HEIGHT));
+  parent.add(buildRibbon(leftCurbPoints, tangents, CURB_WIDTH, curbMaterial, -0.06 + CURB_HEIGHT));
+  parent.add(buildRibbon(rightCurbPoints, tangents, CURB_WIDTH, curbMaterial, -0.06 + CURB_HEIGHT));
 
   const minX = Math.min(...pathPoints.map((p) => p.x)) - TERRAIN_PAD;
   const maxX = Math.max(...pathPoints.map((p) => p.x)) + TERRAIN_PAD;
@@ -193,7 +198,7 @@ export function buildRoadAndTerrain(scene, pathPoints) {
   terrainPlane.rotation.x    = -Math.PI / 2;
   terrainPlane.position.set((minX + maxX) / 2, -0.08, (minZ + maxZ) / 2);
   terrainPlane.receiveShadow = true;
-  scene.add(terrainPlane);
+  parent.add(terrainPlane);
 
   return { roadMesh, terrainPlane };
 }
