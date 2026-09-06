@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildRoadAndTerrain } from './ground.js';
 import {
   MODEL_PATH, ANIMATION_START_TIME, CAMERA_TARGET_HEIGHT,
   VISIBLE_PART_DISTANCE, FADE_PART_DISTANCE,
@@ -153,35 +152,8 @@ export function playAnimation(nameOrIndex = 0) {
 
 export function resumeBikeCameraFollow() { state.cameraFollowEnabled = true; }
 
-// Samples the follow target's world XZ position across one full loop of the
-// longest clip, so the road can be built to hug the bike's actual path
-// (including curves) instead of assuming it drives in a straight line.
-const PATH_SAMPLES = 200;
-
-function sampleBikePath(model, followTarget, clips) {
-  const sampleMixer = new THREE.AnimationMixer(model);
-  const clip = clips.reduce((a, b) => (a.duration > b.duration ? a : b));
-  sampleMixer.clipAction(clip).play();
-
-  const points = [];
-  const wp = new THREE.Vector3();
-  for (let i = 0; i < PATH_SAMPLES; i++) {
-    sampleMixer.setTime((clip.duration * i) / PATH_SAMPLES);
-    model.updateMatrixWorld(true);
-    followTarget.getWorldPosition(wp);
-    points.push({ x: wp.x, z: wp.z });
-  }
-  sampleMixer.stopAllAction();
-
-  // Net per-loop drift (the container accumulates this each cycle so the
-  // bike keeps progressing even though the local animation loops in place).
-  // Usually ~0 when the path is a closed loop, but not assumed to be.
-  const last = points[points.length - 1];
-  loopStartPos.set(points[0].x, 0, points[0].z);
-  loopDisplace.set(last.x, 0, last.z).sub(loopStartPos);
-
-  return points;
-}
+// Road markings / street lights — disabled, preserved for future use
+function buildRoadMarkings() { return; } // eslint-disable-line no-unused-vars
 
 export function loadBike({ scene, camera, controls, clock, bgGroup, dust, shadowCatcher, onProgress, onReady }) {
   scene.add(bikeContainer);
@@ -203,11 +175,19 @@ export function loadBike({ scene, camera, controls, clock, bgGroup, dust, shadow
       if (state.animationClips.length > 0) {
         state.mixer = new THREE.AnimationMixer(state.model);
 
-        // Sample the bike's actual path so the road can be built to match
-        // it (including curves) and the container can accumulate any net
-        // per-loop drift, making the bike keep progressing indefinitely.
-        const pathPoints = sampleBikePath(state.model, state.followTarget, state.animationClips);
-        buildRoadAndTerrain(scene, pathPoints);
+        // Sample displacement of one full animation loop so the container can
+        // accumulate it each cycle, making the bike move forward indefinitely.
+        {
+          const sampleMixer = new THREE.AnimationMixer(state.model);
+          const clip = state.animationClips.reduce((a, b) => a.duration > b.duration ? a : b);
+          sampleMixer.clipAction(clip).play();
+          sampleMixer.setTime(0);
+          state.followTarget.getWorldPosition(loopStartPos);
+          sampleMixer.setTime(clip.duration);
+          state.followTarget.getWorldPosition(loopDisplace);
+          loopDisplace.sub(loopStartPos);
+          sampleMixer.stopAllAction();
+        }
 
         state.mixer.addEventListener('loop', () => {
           if (!state.followTarget) return;
@@ -218,7 +198,7 @@ export function loadBike({ scene, camera, controls, clock, bgGroup, dust, shadow
             followPosition.x, followPosition.y + CAMERA_TARGET_HEIGHT, followPosition.z,
           );
           lastFadePos.copy(followPosition);
-          prevFollowPosition.copy(followPosition); // prevent a camera-speed spike on the loop jump
+          prevFollowPosition.copy(followPosition); // prevent texture scroll spike on loop jump
         });
 
         playAllAnimations();

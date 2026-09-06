@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
-const ROAD_WIDTH  = 9; // world units across the road
-const TILE_SIZE   = 5; // world units per texture tile along the road's length
-const TERRAIN_PAD = 40; // grass margin around the track's bounding box
+const ROAD_WIDTH  = 9;   // world units across (X)
+const ROAD_LENGTH = 500; // world units long (Z, direction of travel)
+const TILE_SIZE   = 5;   // world units per texture tile along the length
 
 // One tile of the road surface: asphalt speckle/cracks plus a dashed centre
 // line. Stretched across the full road width (no horizontal tiling) so the
@@ -53,6 +53,29 @@ function makeAsphaltTexture(size = 512) {
 }
 
 export function createGround(scene) {
+  const asphaltTex = makeAsphaltTexture(512);
+  asphaltTex.repeat.set(1, ROAD_LENGTH / TILE_SIZE);
+
+  const asphaltPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(ROAD_WIDTH, ROAD_LENGTH, 1, 1),
+    new THREE.MeshStandardMaterial({ map: asphaltTex, color: 0xcccccc, roughness: 0.97, metalness: 0.00 }),
+  );
+  asphaltPlane.rotation.x    = -Math.PI / 2;
+  asphaltPlane.position.y    = -0.06;
+  asphaltPlane.receiveShadow = true;
+  scene.add(asphaltPlane);
+
+  // Wide grass shoulder so the road reads as a distinct street rather than
+  // an undifferentiated floor stretching to the horizon.
+  const terrainPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(500, 500, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x6b8f52, roughness: 1, metalness: 0 }),
+  );
+  terrainPlane.rotation.x    = -Math.PI / 2;
+  terrainPlane.position.y    = -0.08;
+  terrainPlane.receiveShadow = true;
+  scene.add(terrainPlane);
+
   const shadowCatcher = new THREE.Mesh(
     new THREE.CircleGeometry(5, 48),
     new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.35 }),
@@ -62,90 +85,5 @@ export function createGround(scene) {
   shadowCatcher.receiveShadow = true;
   scene.add(shadowCatcher);
 
-  return { shadowCatcher };
-}
-
-// Builds a road ribbon that hugs the bike's actual sampled path (a closed
-// loop, since the animation returns to its start each cycle) instead of an
-// arbitrary straight strip, so the road always points the way the bike is
-// actually heading — including through curves. Also lays a grass terrain
-// plane sized to comfortably cover the whole track.
-export function buildRoadAndTerrain(scene, pathPoints) {
-  const n = pathPoints.length;
-  const left  = new Array(n);
-  const right = new Array(n);
-  const dist  = new Array(n);
-  dist[0] = 0;
-
-  for (let i = 0; i < n; i++) {
-    const prev = pathPoints[(i - 1 + n) % n];
-    const next = pathPoints[(i + 1) % n];
-    let tx = next.x - prev.x;
-    let tz = next.z - prev.z;
-    const tLen = Math.hypot(tx, tz) || 1;
-    tx /= tLen; tz /= tLen;
-
-    const hw = ROAD_WIDTH / 2;
-    const px = -tz * hw;
-    const pz =  tx * hw;
-    const p  = pathPoints[i];
-    left[i]  = { x: p.x + px, z: p.z + pz };
-    right[i] = { x: p.x - px, z: p.z - pz };
-
-    if (i > 0) {
-      dist[i] = dist[i - 1] + Math.hypot(p.x - pathPoints[i - 1].x, p.z - pathPoints[i - 1].z);
-    }
-  }
-
-  const positions = new Float32Array(n * 2 * 3);
-  const uvs       = new Float32Array(n * 2 * 2);
-  const normals   = new Float32Array(n * 2 * 3);
-  for (let i = 0; i < n; i++) {
-    const v = dist[i] / TILE_SIZE;
-    const li = i * 2, ri = i * 2 + 1;
-    positions[li * 3] = left[i].x;  positions[li * 3 + 1] = 0; positions[li * 3 + 2] = left[i].z;
-    positions[ri * 3] = right[i].x; positions[ri * 3 + 1] = 0; positions[ri * 3 + 2] = right[i].z;
-    uvs[li * 2] = 0; uvs[li * 2 + 1] = v;
-    uvs[ri * 2] = 1; uvs[ri * 2 + 1] = v;
-    normals[li * 3 + 1] = 1; normals[ri * 3 + 1] = 1;
-  }
-
-  const indices = [];
-  for (let i = 0; i < n; i++) {
-    const next = (i + 1) % n;
-    const li = i * 2, ri = i * 2 + 1, ln = next * 2, rn = next * 2 + 1;
-    indices.push(li, rn, ri);
-    indices.push(li, ln, rn);
-  }
-
-  const roadGeo = new THREE.BufferGeometry();
-  roadGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  roadGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  roadGeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-  roadGeo.setIndex(indices);
-
-  const asphaltTex = makeAsphaltTexture(512);
-  const roadMesh = new THREE.Mesh(
-    roadGeo,
-    new THREE.MeshStandardMaterial({ map: asphaltTex, color: 0xcccccc, roughness: 0.97, metalness: 0.00 }),
-  );
-  roadMesh.position.y    = -0.06;
-  roadMesh.receiveShadow = true;
-  scene.add(roadMesh);
-
-  const minX = Math.min(...pathPoints.map((p) => p.x)) - TERRAIN_PAD;
-  const maxX = Math.max(...pathPoints.map((p) => p.x)) + TERRAIN_PAD;
-  const minZ = Math.min(...pathPoints.map((p) => p.z)) - TERRAIN_PAD;
-  const maxZ = Math.max(...pathPoints.map((p) => p.z)) + TERRAIN_PAD;
-
-  const terrainPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(maxX - minX, maxZ - minZ, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x6b8f52, roughness: 1, metalness: 0 }),
-  );
-  terrainPlane.rotation.x    = -Math.PI / 2;
-  terrainPlane.position.set((minX + maxX) / 2, -0.08, (minZ + maxZ) / 2);
-  terrainPlane.receiveShadow = true;
-  scene.add(terrainPlane);
-
-  return { roadMesh, terrainPlane };
+  return { asphaltTex, asphaltPlane, terrainPlane, shadowCatcher };
 }
