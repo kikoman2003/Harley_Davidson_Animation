@@ -17,7 +17,7 @@ import {
 // ── Boot ──────────────────────────────────────────────────────────────────
 const { scene, camera, renderer, controls, clock } = createScene();
 const { bgGroup, dust }                             = createEnvironment(scene);
-const { asphaltTex, asphaltPlane, shadowCatcher }   = createGround(scene);
+const { shadowCatcher }                             = createGround(scene);
 const composer                                      = createComposer(renderer, scene, camera);
 
 // ── Loading screen ────────────────────────────────────────────────────────
@@ -104,12 +104,6 @@ function animate() {
 
     shadowCatcher.position.set(followPosition.x, -0.02, followPosition.z);
     bgGroup.position.set(followPosition.x, 0, followPosition.z);
-    asphaltPlane.position.set(followPosition.x, -0.06, followPosition.z);
-
-    if (state.rideStarted) {
-      asphaltTex.offset.x += (followPosition.x - prevFollowPosition.x) * 0.2;
-      asphaltTex.offset.y -= (followPosition.z - prevFollowPosition.z) * 0.2;
-    }
     prevFollowPosition.copy(followPosition);
 
     if (followPosition.distanceTo(lastFadePos) > 2.5) {

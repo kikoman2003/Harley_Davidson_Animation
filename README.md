@@ -1,6 +1,6 @@
 # Harley-Davidson 3D Showcase
 
-An interactive 3D web experience built with Three.js. A Harley-Davidson motorcycle model is displayed in a bright daytime scene. Pressing **RIDE** starts the animation and an orbiting camera that follows the bike as it rides forward indefinitely across a scrolling asphalt ground.
+An interactive 3D web experience built with Three.js. A Harley-Davidson motorcycle model is displayed in a bright daytime scene. Pressing **RIDE** starts the animation and an orbiting camera that follows the bike as it rides its full curved route, down a two-lane street built to match its exact trajectory, with curbs and a grass shoulder on each side.
 
 ---
 
@@ -14,7 +14,7 @@ An interactive 3D web experience built with Three.js. A Harley-Davidson motorcyc
 | Showcase orbit | Slow 360° camera rotation while the bike is stationary |
 | Cinematic intro | Zoom-in → hold → zoom-out sequence when RIDE is pressed |
 | Orbiting camera | Smooth 360° orbit with gentle height breathing during the ride |
-| Scrolling ground | Asphalt texture UV scrolls so it looks like the bike is actually driving |
+| Street | A curved two-lane road (via a Catmull-Rom spline) built to match the bike's actual sampled trajectory, with curbs, a dashed centre line, edge lines, and grass shoulders |
 | Part fading | Model parts far from the camera fade out to reduce clutter |
 | Day atmosphere | Sky gradient, mountains, floating dust, fog |
 
@@ -63,7 +63,7 @@ src/
 ├── state.js         All shared constants and mutable runtime state
 ├── scene.js         Renderer, camera, OrbitControls, lighting
 ├── environment.js   Day sky: mountains, dust (stars/moon/city-glow kept but hidden)
-├── ground.js        Asphalt plane and shadow catcher
+├── ground.js        Curved road/curbs/terrain (built from the bike's path) and shadow catcher
 ├── bike.js          GLB loader, animation mixer, infinite forward movement
 ├── camera.js        Intro sequence logic + continuous orbit update
 └── ui.js            RIDE / STOP buttons
@@ -114,18 +114,13 @@ Single source of truth for the entire app. Contains:
 ---
 
 ### `src/ground.js`
-`createGround(scene)` returns `{ asphaltTex, asphaltPlane, shadowCatcher }`.
+`createGround(scene)` returns `{ shadowCatcher }`. The road, curbs, and terrain aren't built here — they depend on the bike's actual animated trajectory, which isn't known until `bike.js` has loaded the model and sampled its clips (see `sampleBikePath`, below).
 
-- **`makeAsphaltTexture(512)`** — procedurally generates a 512×512 canvas:
-  1. Dark grey base fill (`#1c1c1e`)
-  2. Pixel-level noise (±12 brightness per channel)
-  3. 420 random ellipses for aggregate stones
-  4. 7 random crack lines with low-opacity stroke
-  5. A faint central lane strip
-  - Returns a `THREE.CanvasTexture` with `RepeatWrapping`.
-- **Asphalt plane** — 500×500 `PlaneGeometry`, `MeshStandardMaterial` with the procedural texture repeated 100×100 times, receives shadows.
-- **Shadow catcher** — 5-unit-radius `CircleGeometry` with `ShadowMaterial` (opacity 0.35), positioned just above the asphalt.
-- Both follow the bike XZ position in the render loop so the ground never ends.
+- **`makeAsphaltTexture(512)`** — procedurally generates one road tile (512×512 canvas): dark grey base fill, pixel-level noise, 420 random ellipses for aggregate stones, 7 random crack-line strokes, a dashed centre-line segment (one dash per tile, so it repeats seamlessly), and two solid white edge lines inset from where the curbs begin. Returns a `THREE.CanvasTexture` with `RepeatWrapping`.
+- **`sampleSmoothPath(pathPoints, divisions)`** — fits a closed `THREE.CatmullRomCurve3` through the raw sampled points (the animation returns to its start every cycle, so the path is a loop) and calls `curve.getSpacedPoints()` for evenly arc-length-spaced points plus `curve.getTangentAt()` for the exact analytical tangent at each one. This is what makes the road a genuinely smooth spline through the curve rather than a faceted polyline between the raw, unevenly-time-spaced samples.
+- **`buildRibbon(points, tangents, width, material, y)`** — the shared ribbon-builder: offsets each point left/right by `width / 2` along its tangent's perpendicular to build one `BufferGeometry` (positions, UVs, flat-up normals, indices) in a single draw call, closing the strip back to its start. UVs use `u = 0/1` across the width (so markings always land in the same place relative to the edges, even through curves) and `v = cumulativeDistanceAlongPath / TILE_SIZE` along the length (so dash/texture spacing stays consistent regardless of how sharply the path bends). Reused for the road surface and both curbs so all three bend identically.
+- **`buildRoadAndTerrain(scene, pathPoints)`** — called once after `bike.js` samples the path: builds the asphalt ribbon (`ROAD_WIDTH = 10`), a light-grey curb ribbon on each side (raised `CURB_HEIGHT` above the road), and a plain green terrain plane sized and centred on the path's bounding box (plus a padding margin) so the grass shoulder comfortably covers the whole track. All of this is static, built once — the path is a closed loop the bike repeats forever, so the road is always "ahead and behind" wherever the bike currently is, with no per-frame regeneration, chunking, or recycling needed.
+- **Shadow catcher** — 5-unit-radius `CircleGeometry` with `ShadowMaterial` (opacity 0.35), built in `createGround` and (unlike the road/terrain) still follows the bike XZ position every frame, since it exists to catch the bike's own shadow wherever the bike currently is.
 
 ---
 
@@ -135,17 +130,17 @@ Owns the model and animation system. Exports: `bikeContainer`, `loadBike()`, `pl
 #### `bikeContainer` (THREE.Group)
 The model is placed inside this group rather than directly in the scene. Every time the animation loops, the container's position is shifted forward by `loopDisplace` — the net world displacement of one full animation cycle — making the bike appear to travel forward indefinitely without any position reset visible in the animation.
 
-#### Loop displacement sampling
-On load, a temporary `AnimationMixer` (`sampleMixer`) plays the longest clip, samples `followTarget.getWorldPosition()` at time 0 and at clip end, subtracts them to get `loopDisplace`. This runs synchronously before the real mixer starts.
+#### `sampleBikePath()` — path sampling
+On load, a temporary `AnimationMixer` (`sampleMixer`) plays the longest clip and samples `followTarget.getWorldPosition()` — the exact same object `frameCameraOnBike()` and the live camera-follow system already track — at 200 evenly-spaced times across its duration. This records the bike's real XZ trajectory, curves included, and is the single source of truth handed to `buildRoadAndTerrain()` (`ground.js`) to build the road. `loopDisplace` is just the first and last of these same 200 points, subtracted (previously a separate two-sample measurement; now free as a byproduct of the fuller sampling). Runs synchronously before the real mixer starts.
 
 #### `mixer.addEventListener('loop', ...)`
-Fires every time the animation mixer completes one cycle. Shifts `bikeContainer.position` by `loopDisplace`, then snaps `smoothedOrbitCenter` and `smoothedLookTarget` to the new position so the camera shows zero visible jump. Also resets `prevFollowPosition` so the asphalt texture scroll doesn't spike on the jump frame.
+Fires every time the animation mixer completes one cycle. Shifts `bikeContainer.position` by `loopDisplace`, then snaps `smoothedOrbitCenter` and `smoothedLookTarget` to the new position so the camera shows zero visible jump. Also resets `prevFollowPosition` so the camera's speed calculation doesn't spike on the jump frame.
 
 #### `fadeBackgroundParts()`
 Throttled to fire only when the bike moves more than 2.5 units from `_lastFadePos`. Iterates `fadedMeshes` (all mesh nodes collected during `prepareModel`). Uses `setMaterialOpacity()` which has an early-out guard (`abs(current - target) < 0.005`) to avoid triggering Three.js render-list re-sorts — this was the fix for the periodic "ping" stutter.
 
 #### `frameCameraOnBike()`
-Hard-snaps camera, controls target, bgGroup, dust, and shadowCatcher to the bike's current world position. Called once after load and once after `buildRoadMarkings()` resets the mixer time.
+Hard-snaps camera, controls target, bgGroup, dust, and shadowCatcher to the bike's current world position. Called once right after load, before the path has been sampled and the road built.
 
 ---
 
@@ -187,11 +182,8 @@ Entry point. Responsibilities:
 3. Owns the `animate()` render loop, which:
    - Calls `mixer.update(delta)` only when `rideStarted` is true.
    - Showcase mode (bike frozen): slow 360° `displayAngle` orbit at 0.38 rad/s.
-   - Ride mode: calls `updateCamera(delta, ...)`, moves `bgGroup`, `shadowCatcher`, and `asphaltPlane` to track the bike XZ, scrolls the asphalt texture UV by the bike's per-frame displacement, calls `fadeBackgroundParts()` when the bike moves more than 2.5 units.
+   - Ride mode: calls `updateCamera(delta, ...)`, moves `bgGroup` and `shadowCatcher` to track the bike XZ, calls `fadeBackgroundParts()` when the bike moves more than 2.5 units. The road, curbs, and terrain are static meshes built once at load time (see "How the Road Works" below) — they cover the bike's whole path already, so they don't need to be moved, scrolled, or regenerated each frame.
 4. Handles `window.resize`.
-
-#### Asphalt texture scrolling
-Each frame: `asphaltTex.offset.x += (followPosition.x - prevFollowPosition.x) * 0.2` and `asphaltTex.offset.y -= (followPosition.z - prevFollowPosition.z) * 0.2`. The scale factor 0.2 equals `repeat / planeSize = 100 / 500`, ensuring the scroll speed exactly matches real world-space movement. Because the texture tiles, offset wraps seamlessly — the loop jump frame is also seamless as the displacement is snapped in the loop handler.
 
 ---
 
@@ -211,11 +203,11 @@ ORBIT_FOV      = 42     // degrees
 
 ---
 
-## How the Infinite Road Works
+## How the Road Works
 
-1. On load, a `sampleMixer` scrubs the animation from time 0 to clip end and records `loopDisplace` = end position − start position.
-2. The real `AnimationMixer` fires a `loop` event each cycle.
-3. The loop handler adds `loopDisplace` to `bikeContainer.position`.
-4. From the camera's point of view the bike never stops — it just keeps going forward.
-5. The asphalt texture UV scrolls each frame by the actual world-space movement, so the ground looks like it's passing under the bike.
-6. The `bgGroup`, `shadowCatcher`, and `asphaltPlane` follow the bike XZ position each frame, so the environment never runs out.
+The bike's animation isn't a straight line — sampling its follow target across a full loop shows it holds straight for ~6.6s, then sweeps through a curve that swings its heading by over 150° before straightening out on a new diagonal, then closes back to its start (first and last samples match almost exactly — a closed loop). A road that just re-centers a straight strip under the bike's XZ position looks fine on the straight section but makes the bike look like it's drifting once the heading diverges from the strip's fixed orientation. Fixing that meant building the road to match the bike's actual path instead of assuming a straight one:
+
+1. `sampleBikePath()` (`bike.js`) scrubs a temporary mixer across the whole clip (200 samples) and records the bike's real XZ position at each one — this is the same `followTarget` the live camera-follow system already tracks, not a separate/new path.
+2. `buildRoadAndTerrain()` (`ground.js`) fits those samples to a closed `THREE.CatmullRomCurve3`, re-samples it into evenly arc-length-spaced points with exact analytical tangents, and builds a ribbon `BufferGeometry` that offsets left/right along those tangents — a real curved mesh hugging the path, not a re-oriented straight primitive. Curbs are the same ribbon shape, offset further out and raised slightly.
+3. Because the road is a real static mesh built once and already covering the bike's whole route (a closed loop the bike repeats forever), it needs no per-frame scrolling, re-centering, or regeneration — unlike the camera, background, and shadow catcher, which still track the bike's live position every frame since they only need to frame whatever's immediately around it.
+4. `loopDisplace` (the first and last of those same 200 samples, subtracted) still lets `bikeContainer` accumulate any net per-loop drift on the `AnimationMixer`'s `loop` event — for this particular clip it's ~0 since the path returns almost exactly to its start, but the mechanism holds for any clip that doesn't.
