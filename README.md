@@ -1,6 +1,6 @@
 # Harley-Davidson 3D Showcase
 
-An interactive 3D web experience built with Three.js. A Harley-Davidson motorcycle model is displayed in a bright daytime scene. Pressing **RIDE** starts the animation and an orbiting camera that follows the bike as it rides forward indefinitely across a scrolling asphalt ground.
+An interactive 3D web experience built with Three.js. A Harley-Davidson motorcycle model is displayed in a bright daytime scene. Pressing **RIDE** starts the animation and an orbiting camera that follows the bike as it rides forward indefinitely down a scrolling street with a grass shoulder on each side.
 
 ---
 
@@ -14,7 +14,7 @@ An interactive 3D web experience built with Three.js. A Harley-Davidson motorcyc
 | Showcase orbit | Slow 360° camera rotation while the bike is stationary |
 | Cinematic intro | Zoom-in → hold → zoom-out sequence when RIDE is pressed |
 | Orbiting camera | Smooth 360° orbit with gentle height breathing during the ride |
-| Scrolling ground | Asphalt texture UV scrolls so it looks like the bike is actually driving |
+| Street | Fixed-width road strip with a dashed centre line and grass shoulders, scrolling so it looks like the bike is actually driving |
 | Part fading | Model parts far from the camera fade out to reduce clutter |
 | Day atmosphere | Sky gradient, mountains, floating dust, fog |
 
@@ -63,7 +63,7 @@ src/
 ├── state.js         All shared constants and mutable runtime state
 ├── scene.js         Renderer, camera, OrbitControls, lighting
 ├── environment.js   Day sky: mountains, dust (stars/moon/city-glow kept but hidden)
-├── ground.js        Asphalt plane and shadow catcher
+├── ground.js        Road strip, grass terrain, and shadow catcher
 ├── bike.js          GLB loader, animation mixer, infinite forward movement
 ├── camera.js        Intro sequence logic + continuous orbit update
 └── ui.js            RIDE / STOP buttons
@@ -114,18 +114,19 @@ Single source of truth for the entire app. Contains:
 ---
 
 ### `src/ground.js`
-`createGround(scene)` returns `{ asphaltTex, asphaltPlane, shadowCatcher }`.
+`createGround(scene)` returns `{ asphaltTex, asphaltPlane, terrainPlane, shadowCatcher }`.
 
-- **`makeAsphaltTexture(512)`** — procedurally generates a 512×512 canvas:
+- **`makeAsphaltTexture(512)`** — procedurally generates one road tile (512×512 canvas), stretched across the full road width and repeated along its length:
   1. Dark grey base fill (`#1c1c1e`)
   2. Pixel-level noise (±12 brightness per channel)
   3. 420 random ellipses for aggregate stones
   4. 7 random crack lines with low-opacity stroke
-  5. A faint central lane strip
+  5. A dashed white centre-line segment — one dash per tile, so it repeats seamlessly along the road
   - Returns a `THREE.CanvasTexture` with `RepeatWrapping`.
-- **Asphalt plane** — 500×500 `PlaneGeometry`, `MeshStandardMaterial` with the procedural texture repeated 100×100 times, receives shadows.
+- **Asphalt plane** — a `9 × 500` `PlaneGeometry` (`ROAD_WIDTH × ROAD_LENGTH`) — a fixed-width road strip rather than an infinite floor. The texture repeats `1×` across the width (so the centre line lands dead centre, no tiling seams) and `100×` along the length (`ROAD_LENGTH / TILE_SIZE`).
+- **Terrain plane** — a 500×500 plain green `MeshStandardMaterial` sitting slightly below the road, giving the road distinct edges instead of blending into an all-asphalt horizon.
 - **Shadow catcher** — 5-unit-radius `CircleGeometry` with `ShadowMaterial` (opacity 0.35), positioned just above the asphalt.
-- Both follow the bike XZ position in the render loop so the ground never ends.
+- All three follow the bike XZ position in the render loop so the ground never ends. Because the road plane is a real fixed-width strip (not a scrolling illusion), only the length axis needs a texture scroll — the width axis is handled by the plane simply re-centering under the bike each frame.
 
 ---
 
@@ -187,11 +188,11 @@ Entry point. Responsibilities:
 3. Owns the `animate()` render loop, which:
    - Calls `mixer.update(delta)` only when `rideStarted` is true.
    - Showcase mode (bike frozen): slow 360° `displayAngle` orbit at 0.38 rad/s.
-   - Ride mode: calls `updateCamera(delta, ...)`, moves `bgGroup`, `shadowCatcher`, and `asphaltPlane` to track the bike XZ, scrolls the asphalt texture UV by the bike's per-frame displacement, calls `fadeBackgroundParts()` when the bike moves more than 2.5 units.
+   - Ride mode: calls `updateCamera(delta, ...)`, moves `bgGroup`, `shadowCatcher`, `asphaltPlane`, and `terrainPlane` to track the bike XZ, scrolls the asphalt texture UV (length axis only) by the bike's per-frame displacement, calls `fadeBackgroundParts()` when the bike moves more than 2.5 units.
 4. Handles `window.resize`.
 
 #### Asphalt texture scrolling
-Each frame: `asphaltTex.offset.x += (followPosition.x - prevFollowPosition.x) * 0.2` and `asphaltTex.offset.y -= (followPosition.z - prevFollowPosition.z) * 0.2`. The scale factor 0.2 equals `repeat / planeSize = 100 / 500`, ensuring the scroll speed exactly matches real world-space movement. Because the texture tiles, offset wraps seamlessly — the loop jump frame is also seamless as the displacement is snapped in the loop handler.
+Each frame: `asphaltTex.offset.y -= (followPosition.z - prevFollowPosition.z) * 0.2`. The scale factor 0.2 equals `repeat / roadLength = 100 / 500`, ensuring the scroll speed exactly matches real world-space movement along the road. Because the texture tiles along this axis, offset wraps seamlessly — the loop jump frame is also seamless as the displacement is snapped in the loop handler. The width axis needs no scroll: the road plane is a fixed-width strip that simply re-centers on the bike's X position each frame.
 
 ---
 
@@ -217,5 +218,5 @@ ORBIT_FOV      = 42     // degrees
 2. The real `AnimationMixer` fires a `loop` event each cycle.
 3. The loop handler adds `loopDisplace` to `bikeContainer.position`.
 4. From the camera's point of view the bike never stops — it just keeps going forward.
-5. The asphalt texture UV scrolls each frame by the actual world-space movement, so the ground looks like it's passing under the bike.
-6. The `bgGroup`, `shadowCatcher`, and `asphaltPlane` follow the bike XZ position each frame, so the environment never runs out.
+5. The asphalt texture UV scrolls along the road's length each frame by the actual world-space movement, so the ground looks like it's passing under the bike.
+6. The `bgGroup`, `shadowCatcher`, `asphaltPlane`, and `terrainPlane` follow the bike XZ position each frame, so the road and its grass shoulder never run out.
